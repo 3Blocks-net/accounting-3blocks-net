@@ -1,0 +1,29 @@
+name: publish
+
+on:
+  push:
+    branches: ["main"]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: 3blocks-net/wallet-accounting.app:latest
+
+jobs:
+  publish:
+    name: publish image
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Login
+        run: |
+          echo ${{ secrets.PAT }} | docker login ghcr.io -u 3blocks-ci --password-stdin
+
+      - name: Build and Publish
+        run: |
+          docker build \
+            --build-arg NEXT_PUBLIC_API_BASE_URL=${{ secrets.NEXT_PUBLIC_API_BASE_URL }} \
+            . --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
