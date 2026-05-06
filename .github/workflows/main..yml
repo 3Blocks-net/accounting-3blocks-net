@@ -6,7 +6,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: 3blocks-net/wallet-accounting.app:latest
+  IMAGE_NAME: 3blocks-net/accounting.3blocks.net:latest
 
 jobs:
   publish:
