@@ -13,6 +13,9 @@ RUN npm install
 # Bundle app source
 COPY . .
 
+ARG NEXT_PUBLIC_API_BASE_URL
+ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
+
 # Creates the production build (.next folder)
 RUN npm run build
 
