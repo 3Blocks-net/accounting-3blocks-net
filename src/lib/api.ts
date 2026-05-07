@@ -1,10 +1,14 @@
 import type {
-  Transaction,
-  TransactionKind,
-  TransactionUpdateBody,
+  Paginated,
   PortfolioBalances,
   SpamStatus,
   SpamToken,
+  TokenIdentifier,
+  Transaction,
+  TransactionListParams,
+  TransactionStats,
+  TransactionStatsParams,
+  TransactionUpdateBody,
 } from '@/types';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3000';
@@ -18,9 +22,34 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export function getTransactions(kind?: TransactionKind): Promise<Transaction[]> {
-  const params = kind ? `?kind=${kind}` : '';
-  return request<Transaction[]>(`/transactions${params}`);
+function buildQuery(params: Record<string, unknown>): string {
+  const sp = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined || v === null || v === '') continue;
+    sp.set(k, String(v));
+  }
+  const qs = sp.toString();
+  return qs ? `?${qs}` : '';
+}
+
+export function getTransactions(
+  params: TransactionListParams = {},
+): Promise<Paginated<Transaction>> {
+  return request<Paginated<Transaction>>(
+    `/transactions${buildQuery({ ...params })}`,
+  );
+}
+
+export function getTransactionStats(
+  params: TransactionStatsParams = {},
+): Promise<TransactionStats> {
+  return request<TransactionStats>(
+    `/transactions/stats${buildQuery({ ...params })}`,
+  );
+}
+
+export function getTransactionWallets(): Promise<string[]> {
+  return request<string[]>('/transactions/wallets');
 }
 
 export function getTransaction(txId: string): Promise<Transaction> {
@@ -59,6 +88,30 @@ export function whitelistToken(id: string, note?: string): Promise<SpamToken> {
 
 export function remarkAsSpam(id: string): Promise<SpamToken> {
   return request<SpamToken>(`/spam-tokens/${id}/spam`, { method: 'PATCH' });
+}
+
+/**
+ * Token via Transfer-Identität whitelisten — upsert auf Backend.
+ * Funktioniert auch für Tokens, die noch keinen SpamToken-Record haben.
+ */
+export function whitelistTransferToken(input: TokenIdentifier): Promise<SpamToken> {
+  return request<SpamToken>('/spam-tokens/by-token/whitelist', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+/**
+ * Token via Transfer-Identität als Spam markieren — upsert auf Backend.
+ * Legt einen Record an, falls noch keiner existiert.
+ */
+export function flagTransferTokenAsSpam(input: TokenIdentifier): Promise<SpamToken> {
+  return request<SpamToken>('/spam-tokens/by-token/spam', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
 }
 
 export function triggerSync(): Promise<{ synced: number }> {

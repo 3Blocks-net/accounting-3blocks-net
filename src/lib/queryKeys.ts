@@ -1,8 +1,17 @@
+import type {
+  TransactionListParams,
+  TransactionStatsParams,
+} from '@/types';
+
 export const queryKeys = {
   transactions: {
     all: ['transactions'] as const,
-    filtered: (kind?: string) => ['transactions', kind] as const,
-    detail: (txId: string) => ['transactions', txId] as const,
+    list: (params: TransactionListParams) =>
+      ['transactions', 'list', params] as const,
+    stats: (params: TransactionStatsParams = {}) =>
+      ['transactions', 'stats', params] as const,
+    wallets: ['transactions', 'wallets'] as const,
+    detail: (txId: string) => ['transactions', 'detail', txId] as const,
   },
   portfolio: {
     balances: (date: string, excludeSpam: boolean) =>

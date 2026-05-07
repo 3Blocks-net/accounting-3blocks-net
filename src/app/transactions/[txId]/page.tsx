@@ -2,13 +2,20 @@
 
 import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
+import { Loader2, ShieldCheck, ShieldOff } from 'lucide-react';
+import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { TransactionEditModal } from '@/components/transactions/TransactionEditModal';
-import { getTransaction } from '@/lib/api';
+import { cn } from '@/lib/utils';
+import {
+  flagTransferTokenAsSpam,
+  getTransaction,
+  whitelistTransferToken,
+} from '@/lib/api';
 import { queryKeys } from '@/lib/queryKeys';
 import { getExplorerUrl, getExplorerName } from '@/lib/explorer';
 import type { Transaction, TransactionKind, Transfer } from '@/types';
@@ -75,10 +82,77 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
   );
 }
 
-function TransferRow({ t }: { t: Transfer }) {
+function SpamToggleButton({
+  transfer,
+  network,
+}: {
+  transfer: Transfer;
+  network: string;
+}) {
+  const queryClient = useQueryClient();
+  const isSpam = transfer.isSpam;
+
+  const mutation = useMutation({
+    mutationFn: () => {
+      const input = {
+        network,
+        asset: transfer.asset,
+        tokenAddress: transfer.tokenAddress ?? null,
+      };
+      return isSpam
+        ? whitelistTransferToken(input)
+        : flagTransferTokenAsSpam(input);
+    },
+    onSuccess: () => {
+      toast.success(
+        isSpam
+          ? `${transfer.asset} whitelisted`
+          : `${transfer.asset} als Spam markiert`,
+      );
+      queryClient.invalidateQueries({ queryKey: queryKeys.transactions.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.spamTokens.all });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const Icon = isSpam ? ShieldCheck : ShieldOff;
+  const label = isSpam ? 'Whitelisten' : 'Als Spam markieren';
+
+  return (
+    <button
+      type="button"
+      onClick={() => mutation.mutate()}
+      disabled={mutation.isPending}
+      title={label}
+      aria-label={label}
+      className={cn(
+        'inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-card px-2 text-[11px] font-medium text-muted-foreground transition-all',
+        'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
+        'disabled:cursor-wait disabled:opacity-100',
+        isSpam
+          ? 'hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700'
+          : 'hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700',
+      )}
+    >
+      {mutation.isPending ? (
+        <Loader2 className="size-3.5 animate-spin" />
+      ) : (
+        <Icon className="size-3.5" />
+      )}
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function TransferRow({ t, network }: { t: Transfer; network: string }) {
   const isIn = t.direction === 'IN';
   return (
-    <tr className={`border-b last:border-0 ${t.isSpam ? 'opacity-50' : ''}`}>
+    <tr
+      className={cn(
+        'group border-b transition-colors last:border-0 hover:bg-muted/40',
+        t.isSpam && 'opacity-55 hover:opacity-95',
+      )}
+    >
       <td className="px-3 py-3 whitespace-nowrap">
         <span
           className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold border ${
@@ -130,6 +204,9 @@ function TransferRow({ t }: { t: Transfer }) {
       <td className="px-3 py-3 text-xs text-muted-foreground">
         {t.operation ?? '—'}
         {t.note && <span className="block text-[11px] italic">{t.note}</span>}
+      </td>
+      <td className="px-3 py-3 text-right whitespace-nowrap">
+        <SpamToggleButton transfer={t} network={network} />
       </td>
     </tr>
   );
@@ -258,11 +335,15 @@ function TransactionDetail({ tx }: { tx: Transaction }) {
                 <th className="px-3 py-2 text-right text-[11px] font-medium text-muted-foreground uppercase tracking-wide">USD</th>
                 <th className="px-3 py-2 text-right text-[11px] font-medium text-muted-foreground uppercase tracking-wide">EUR</th>
                 <th className="px-3 py-2 text-left text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Operation</th>
+                <th
+                  className="px-3 py-2 text-right text-[11px] font-medium text-muted-foreground uppercase tracking-wide"
+                  aria-label="Aktion"
+                />
               </tr>
             </thead>
             <tbody>
               {tx.transfers.map((t) => (
-                <TransferRow key={t.id} t={t} />
+                <TransferRow key={t.id} t={t} network={tx.network} />
               ))}
             </tbody>
           </table>

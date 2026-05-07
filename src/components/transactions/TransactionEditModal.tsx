@@ -20,6 +20,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { updateTransaction } from '@/lib/api';
 import { queryKeys } from '@/lib/queryKeys';
 import type { Transaction, TransactionKind } from '@/types';
@@ -36,9 +37,15 @@ export function TransactionEditModal({ transaction, open, onOpenChange }: Props)
   const queryClient = useQueryClient();
   const [kind, setKind] = useState<TransactionKind>(transaction.kind);
   const [note, setNote] = useState(transaction.note ?? '');
+  const [isSpam, setIsSpam] = useState(transaction.isSpam);
 
   const mutation = useMutation({
-    mutationFn: () => updateTransaction(transaction.txId, { kind, note: note || undefined }),
+    mutationFn: () =>
+      updateTransaction(transaction.txId, {
+        kind,
+        note: note || undefined,
+        isSpam,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.transactions.all });
       toast.success('Transaktion aktualisiert');
@@ -50,9 +57,11 @@ export function TransactionEditModal({ transaction, open, onOpenChange }: Props)
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader>
+        <DialogHeader className="min-w-0 pr-8">
           <DialogTitle>Transaktion bearbeiten</DialogTitle>
-          <p className="text-xs text-muted-foreground font-mono">{transaction.txId}</p>
+          <p className="text-xs text-muted-foreground font-mono break-all">
+            {transaction.txId}
+          </p>
         </DialogHeader>
         <div className="grid gap-4 py-2">
           <div className="grid gap-2">
@@ -78,6 +87,21 @@ export function TransactionEditModal({ transaction, open, onOpenChange }: Props)
               rows={3}
               placeholder="Optionale Notiz…"
             />
+          </div>
+          <div className="flex items-start gap-2">
+            <Checkbox
+              id="isSpam"
+              checked={isSpam}
+              onCheckedChange={(v) => setIsSpam(v === true)}
+            />
+            <div className="grid gap-1 leading-none">
+              <Label htmlFor="isSpam" className="cursor-pointer">
+                Als Spam markieren
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Spam-Transaktionen werden in Übersichten standardmäßig ausgeblendet.
+              </p>
+            </div>
           </div>
         </div>
         <DialogFooter>

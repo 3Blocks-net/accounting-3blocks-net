@@ -27,14 +27,15 @@ export default function PortfolioPage() {
     enabled: !!dateStr,
   });
 
+  const ADDRESS_MAP_PARAMS = { pageSize: 500 } as const;
   const { data: txData } = useQuery({
-    queryKey: queryKeys.transactions.all,
-    queryFn: () => getTransactions(),
+    queryKey: queryKeys.transactions.list(ADDRESS_MAP_PARAMS),
+    queryFn: () => getTransactions(ADDRESS_MAP_PARAMS),
   });
 
   const addressNames = useMemo(() => {
     const map = new Map<string, string>();
-    for (const tx of txData ?? []) {
+    for (const tx of txData?.data ?? []) {
       for (const t of tx.transfers) {
         if (t.sender) map.set(t.from, t.sender);
         if (t.receiver) map.set(t.to, t.receiver);

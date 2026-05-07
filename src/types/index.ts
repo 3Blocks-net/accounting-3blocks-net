@@ -9,6 +9,7 @@ export interface Transfer {
   to: string;
   receiver: string | null;
   direction: 'IN' | 'OUT';
+  tokenAddress: string | null;
   operation: string | null;
   note: string | null;
   priceUsd: string;
@@ -17,6 +18,13 @@ export interface Transfer {
   valueEur: string;
   transactionId: string;
   isSpam: boolean;
+}
+
+export interface TokenIdentifier {
+  network: string;
+  asset: string;
+  tokenAddress?: string | null;
+  note?: string;
 }
 
 export interface Transaction {
@@ -34,12 +42,14 @@ export interface Transaction {
   feePayerAddress: string | null;
   feePayer: string | null;
   note: string | null;
+  isSpam: boolean;
   transfers: Transfer[];
 }
 
 export interface TransactionUpdateBody {
   kind?: TransactionKind;
   note?: string;
+  isSpam?: boolean;
   feeAsset?: string;
   feeAmount?: string;
   feePayerAddress?: string;
@@ -66,3 +76,34 @@ export interface SpamToken {
 
 export type AssetEntry = { balance: number; tokenAddress: string | null };
 export type PortfolioBalances = Record<string, Record<string, AssetEntry>>;
+
+export interface Paginated<T> {
+  data: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export interface TransactionStats {
+  total: number;
+  byKind: Record<TransactionKind, number>;
+}
+
+export interface TransactionListParams {
+  page?: number;
+  pageSize?: number;
+  kind?: TransactionKind;
+  network?: string;
+  sourceType?: string;
+  asset?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  wallet?: string;
+  excludeSpam?: boolean;
+}
+
+export type TransactionStatsParams = Omit<
+  TransactionListParams,
+  'page' | 'pageSize' | 'kind'
+>;
