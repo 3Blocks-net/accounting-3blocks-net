@@ -1,36 +1,77 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 3blocks Wallet Accounting Frontend
 
-## Getting Started
+Internes Dashboard für das 3blocks Wallet Accounting. Das Frontend visualisiert Transaktionen, Portfolio-Salden und Spam-/Whitelist-Tokens und spricht ausschließlich mit dem Backend `api-accounting-3blocks-net`.
 
-First, run the development server:
+## Architektur
+
+- **Frontend:** Next.js 16, React 19, TypeScript, Tailwind CSS 4, TanStack Query
+- **Backend:** separates Repo `api-accounting-3blocks-net`, NestJS + Prisma + PostgreSQL
+- **Deployment:** separates Docker Image hinter Traefik, siehe `docs/DEPLOYMENT.md`
+
+Frontend und Backend bleiben getrennte Repositories und getrennt deploybar. API-Verträge werden aktuell noch manuell in `src/types/index.ts` und `src/lib/api.ts` gepflegt; als Zielbild gibt es OpenAPI-Typgenerierung aus der Backend-Swagger, siehe `docs/API_GENERATION.md`.
+
+## Entwicklung
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Frontend läuft lokal auf:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```txt
+http://localhost:3001
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Standardmäßig wird das Backend unter `http://localhost:3000` erwartet.
 
-## Learn More
+## Environment
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+NEXT_PUBLIC_API_BASE_URL="http://localhost:3000"
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Nur `NEXT_PUBLIC_*` Variablen sind für den Browser bestimmt. Keine Secrets im Frontend ablegen.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Scripts
 
-## Deploy on Vercel
+```bash
+npm run dev           # Dev-Server auf Port 3001
+npm run build         # Production Build
+npm run start         # Next.js Start
+npm run lint          # ESLint
+npm run generate:api  # OpenAPI Types aus Backend-Swagger generieren
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## API-Typgenerierung
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run generate:api
+```
+
+Default OpenAPI-Quelle:
+
+```txt
+http://localhost:3000/swagger-json
+```
+
+Alternative Quelle:
+
+```bash
+OPENAPI_URL=https://api.accounting.3blocks.net/swagger-json npm run generate:api
+```
+
+Production Swagger ist per Traefik Basic Auth geschützt. Für die tägliche Entwicklung ist die lokale Backend-Swagger empfohlen.
+
+## Projektstruktur
+
+```txt
+src/
+  app/              Next.js App Router
+  components/       UI- und Domain-Komponenten
+  lib/              API Wrapper, Query Keys, Utils
+  types/            manuell gepflegte Domain Types
+  generated/        generierte OpenAPI Types
+```
+
+Weitere Agent-/Projektregeln stehen in `AGENTS.md`.

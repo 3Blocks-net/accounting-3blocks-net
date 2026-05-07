@@ -14,13 +14,17 @@ Internes Dashboard für das 3blocks Wallet Accounting. Visualisiert Transaktione
 
 ## Verwandte Repos
 
-- **Backend (API):** `/Users/dario/Documents/develop/3blocks/api-accounting-3blocks-net`
+- **Backend (API):** `api-accounting-3blocks-net`
   - NestJS 11 + Prisma + PostgreSQL
   - Quelle aller Daten + alle Mutationen
-  - Bei API-/Datenmodell-Fragen dort `CLAUDE.md` lesen
-- **Frontend (dieses Repo):** `/Users/dario/Documents/develop/3blocks/accounting-3blocks-net`
+  - Bei API-/Datenmodell-Fragen dort `CLAUDE.md` im Backend-Repo lesen
+- **Frontend (dieses Repo):** `accounting-3blocks-net`
 
-Frontend und Backend werden parallel gepflegt. Schema-Änderungen am Backend (Prisma, DTOs) **müssen** in `src/types/index.ts` und `src/lib/api.ts` gespiegelt werden.
+Frontend und Backend werden parallel als getrennte Repositories gepflegt und getrennt deployt. Lokale absolute Pfade gehören nicht in Code oder Dokumentation; falls beide Repos lokal nebeneinander liegen, genügt eine relative Orientierung über die Repo-Namen.
+
+Schema-Änderungen am Backend (Prisma, DTOs, Controller-Returns) **müssen** aktuell in `src/types/index.ts` und `src/lib/api.ts` gespiegelt werden. Zielbild: Types/API-Client aus der vorhandenen Backend-Swagger/OpenAPI-Spezifikation generieren; siehe `docs/API_GENERATION.md`.
+
+Deployment-Struktur: siehe `docs/DEPLOYMENT.md`.
 
 ---
 
@@ -230,6 +234,12 @@ Sidebar (`src/components/layout/Sidebar.tsx`) → `navItems` ergänzen.
 npm run dev          # http://localhost:3001
 ```
 Erwartet das Backend auf `http://localhost:3000`. Override via `NEXT_PUBLIC_API_BASE_URL` in `.env.local`.
+
+**API-Types aus Swagger generieren:**
+```bash
+npm run generate:api
+```
+Default: `http://localhost:3000/swagger-json`. Override via `OPENAPI_URL`.
 
 ---
 
