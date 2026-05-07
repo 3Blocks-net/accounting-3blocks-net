@@ -1,11 +1,11 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import type { DateRange } from 'react-day-picker';
-import { CalendarIcon, Check, ListFilter, ShieldOff, Wallet, X } from 'lucide-react';
+import { CalendarIcon, Check, ShieldOff, Wallet, X } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Pagination } from '@/components/ui/pagination';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TransactionTable } from '@/components/transactions/TransactionTable';
 import { cn } from '@/lib/utils';
 import {
@@ -43,6 +44,39 @@ function formatDateParam(date?: Date) {
   return date ? format(date, 'yyyy-MM-dd') : undefined;
 }
 
+function getInitialSearchParams() {
+  if (typeof window === 'undefined') return new URLSearchParams();
+  return new URLSearchParams(window.location.search);
+}
+
+function isTransactionKind(value: string | null): value is TransactionKind {
+  return KINDS.includes(value as TransactionKind);
+}
+
+function parsePositiveInt(value: string | null, fallback: number) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function parseDateParam(value: string | null) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return undefined;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (date > today) return undefined;
+
+  return date;
+}
+
+function parseInitialDateRange(): DateRange | undefined {
+  const params = getInitialSearchParams();
+  const from = parseDateParam(params.get('dateFrom'));
+  const to = parseDateParam(params.get('dateTo')) ?? from;
+  return from ? { from, to } : undefined;
+}
+
 function formatDateRangeLabel(range?: DateRange) {
   if (!range?.from) return 'Zeitraum';
   if (!range.to || format(range.from, 'yyyy-MM-dd') === format(range.to, 'yyyy-MM-dd')) {
@@ -59,6 +93,14 @@ export default function TransactionsPage() {
   const [hideSpam, setHideSpam] = useState(true);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
+  const hasInitializedUrlState = useRef(false);
+
+  const scrollToPageTop = () => {
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: 'auto' });
+      document.querySelector('main')?.scrollTo({ top: 0, behavior: 'auto' });
+    });
+  };
 
   const changeKind = (k: TransactionKind | 'ALL') => {
     setKindFilter(k);
@@ -80,9 +122,14 @@ export default function TransactionsPage() {
     setHideSpam(v);
     setPage(1);
   };
+  const changePage = (n: number) => {
+    setPage(n);
+    scrollToPageTop();
+  };
   const changePageSize = (n: number) => {
     setPageSize(n);
     setPage(1);
+    scrollToPageTop();
   };
   const resetFilters = () => {
     setKindFilter('ALL');
@@ -91,6 +138,43 @@ export default function TransactionsPage() {
     setHideSpam(true);
     setPage(1);
   };
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      const params = getInitialSearchParams();
+      const kind = params.get('kind');
+
+      hasInitializedUrlState.current = true;
+      setKindFilter(isTransactionKind(kind) ? kind : 'ALL');
+      setWalletFilter(params.get('wallet') ?? 'ALL');
+      setDateRange(parseInitialDateRange());
+      setHideSpam(params.get('spam') !== 'include');
+      setPage(parsePositiveInt(params.get('page'), 1));
+      setPageSize(parsePositiveInt(params.get('pageSize'), 50));
+    }, 0);
+
+    return () => window.clearTimeout(timeout);
+  }, []);
+
+  useEffect(() => {
+    if (!hasInitializedUrlState.current) return;
+
+    const params = new URLSearchParams();
+    if (kindFilter !== 'ALL') params.set('kind', kindFilter);
+    if (walletFilter !== 'ALL') params.set('wallet', walletFilter);
+    if (dateRange?.from) params.set('dateFrom', formatDateParam(dateRange.from) ?? '');
+    if (dateRange?.to ?? dateRange?.from) {
+      params.set('dateTo', formatDateParam(dateRange.to ?? dateRange.from) ?? '');
+    }
+    if (!hideSpam) params.set('spam', 'include');
+    if (page > 1) params.set('page', String(page));
+    if (pageSize !== 50) params.set('pageSize', String(pageSize));
+
+    const query = params.toString();
+    const nextUrl = query ? `${window.location.pathname}?${query}` : window.location.pathname;
+    const currentUrl = `${window.location.pathname}${window.location.search}`;
+    if (nextUrl !== currentUrl) window.history.replaceState(null, '', nextUrl);
+  }, [kindFilter, walletFilter, dateRange, hideSpam, page, pageSize]);
 
   const listParams: TransactionListParams = useMemo(
     () => ({
@@ -169,34 +253,22 @@ export default function TransactionsPage() {
         </Alert>
       )}
 
+      {/* Type Tabs */}
+      <Tabs value={kindFilter} onValueChange={(value) => changeKind(value as TransactionKind | 'ALL')}>
+        <TabsList className="bg-card shadow-[0_1px_2px_rgba(20,30,60,0.04)] ring-1 ring-border">
+          {(['ALL', ...KINDS] as const).map((kind) => (
+            <TabsTrigger key={kind} value={kind} className="gap-2 px-3 text-xs">
+              {kind === 'ALL' ? 'Alle' : KIND_LABELS[kind]}
+              <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+                {stats.data ? kindCount(kind).toLocaleString('de-DE') : '—'}
+              </span>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+
       {/* Filter-Toolbar */}
       <div className="flex flex-wrap items-center gap-2 lg:flex-nowrap">
-        {/* Type Filter */}
-        <Select value={kindFilter} onValueChange={(v) => changeKind(v as TransactionKind | 'ALL')}>
-          <SelectTrigger className="h-9 w-full min-w-[170px] bg-card text-xs shadow-[0_1px_2px_rgba(20,30,60,0.04)] sm:w-[180px]">
-            <ListFilter className="size-3.5 text-muted-foreground" />
-            <SelectValue placeholder="Typ" />
-          </SelectTrigger>
-          <SelectContent align="start">
-            <SelectGroup>
-              <SelectItem value="ALL">
-                Alle Typen
-                <span className="ml-auto inline-flex min-w-12 items-center justify-end self-center font-mono text-xs leading-none tabular-nums text-muted-foreground">
-                  {stats.data ? kindCount('ALL').toLocaleString('de-DE') : '—'}
-                </span>
-              </SelectItem>
-              {KINDS.map((kind) => (
-                <SelectItem key={kind} value={kind}>
-                  {KIND_LABELS[kind]}
-                  <span className="ml-auto inline-flex min-w-12 items-center justify-end self-center font-mono text-xs leading-none tabular-nums text-muted-foreground">
-                    {stats.data ? kindCount(kind).toLocaleString('de-DE') : '—'}
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-
         {/* Wallet Filter */}
         <Select
           value={walletFilter}
@@ -376,7 +448,7 @@ export default function TransactionsPage() {
         pageSize={pageSize}
         total={total}
         totalPages={totalPages}
-        onPageChange={setPage}
+        onPageChange={changePage}
         onPageSizeChange={changePageSize}
       />
     </div>

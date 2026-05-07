@@ -38,7 +38,7 @@ const kindStyles: Record<TransactionKind, string> = {
 
 function KindBadge({ kind }: { kind: TransactionKind }) {
   return (
-    <Badge variant="outline" className={cn('h-6 rounded-md px-2', kindStyles[kind])}>
+    <Badge variant="outline" className={cn('h-5 rounded-md px-1.5 text-[10px]', kindStyles[kind])}>
       {kindLabels[kind]}
     </Badge>
   );
@@ -94,7 +94,7 @@ function TransferLine({ transfer }: { transfer: Transfer }) {
   return (
     <div
       className={cn(
-        'flex min-w-0 items-center justify-between gap-3 rounded-md border border-transparent px-2 py-1.5',
+        'flex min-w-0 items-center justify-between gap-2 rounded-md border border-transparent px-1.5 py-1',
         incoming ? 'bg-emerald-50/60' : 'bg-red-50/50',
         transfer.isSpam && 'bg-muted/50 opacity-60 line-through',
       )}
@@ -102,7 +102,7 @@ function TransferLine({ transfer }: { transfer: Transfer }) {
       <div className="flex min-w-0 items-center gap-2">
         <span
           className={cn(
-            'flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold',
+            'flex size-4 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold',
             incoming ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700',
           )}
           aria-label={incoming ? 'Eingang' : 'Ausgang'}
@@ -156,16 +156,16 @@ function TransactionRow({ tx, compact, onEdit }: { tx: Transaction; compact: boo
         tx.isSpam && 'bg-muted/20 opacity-70 hover:opacity-95',
       )}
     >
-      <td className="w-[220px] px-4 py-3 align-top">
-        <div className="flex min-w-0 gap-3">
-          <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-background">
+      <td className="w-[190px] px-3 py-2.5 align-top">
+        <div className="flex min-w-0 gap-2.5">
+          <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full border border-border bg-background">
             <KindIcon kind={tx.kind} />
           </div>
           <div className="min-w-0">
             <Link
               href={detailHref}
               onClick={(event) => event.stopPropagation()}
-              className="block font-medium text-foreground transition-colors hover:text-primary"
+              className="block font-medium text-foreground"
             >
               {format(new Date(tx.date), 'dd.MM.yyyy', { locale: de })}
             </Link>
@@ -175,7 +175,7 @@ function TransactionRow({ tx, compact, onEdit }: { tx: Transaction; compact: boo
               <span title={tx.txId}>{shorten(tx.txId)}</span>
             </div>
             {!compact && tx.note && (
-              <div className="mt-1 max-w-[190px] truncate text-xs text-muted-foreground" title={tx.note}>
+              <div className="mt-1 max-w-[150px] truncate text-xs text-muted-foreground" title={tx.note}>
                 {tx.note}
               </div>
             )}
@@ -183,24 +183,22 @@ function TransactionRow({ tx, compact, onEdit }: { tx: Transaction; compact: boo
         </div>
       </td>
 
-      <td className="w-[150px] px-3 py-3 align-top">
-        <div className="flex flex-col items-start gap-1.5">
+      <td className="w-[150px] px-2 py-2.5 align-top">
+        <div className="flex flex-wrap items-center gap-1.5">
           <KindBadge kind={tx.kind} />
-          <div className="flex items-center gap-1.5">
-            <Badge variant="secondary" className="h-5 rounded-md font-mono text-[10px] uppercase tracking-wide">
-              {tx.network}
+          <Badge variant="secondary" className="h-5 rounded-md px-1.5 font-mono text-[10px] uppercase tracking-wide">
+            {tx.network}
+          </Badge>
+          {tx.isSpam && (
+            <Badge variant="destructive" className="h-5 rounded-md text-[10px]">
+              <ShieldAlert className="size-3" />
+              Spam
             </Badge>
-            {tx.isSpam && (
-              <Badge variant="destructive" className="h-5 rounded-md text-[10px]">
-                <ShieldAlert className="size-3" />
-                Spam
-              </Badge>
-            )}
-          </div>
+          )}
         </div>
       </td>
 
-      <td className="min-w-[300px] px-3 py-3 align-top">
+      <td className="min-w-[260px] px-2 py-2.5 align-top">
         <div className="flex flex-col gap-1">
           {visibleTransfers.map((transfer) => (
             <TransferLine key={transfer.id} transfer={transfer} />
@@ -218,7 +216,7 @@ function TransactionRow({ tx, compact, onEdit }: { tx: Transaction; compact: boo
       </td>
 
       {!compact && (
-        <td className="w-[220px] px-3 py-3 align-top">
+        <td className="w-[170px] px-2 py-2.5 align-top">
           {counterparties.length > 0 ? (
             <div className="flex flex-col gap-1 text-xs text-muted-foreground">
               {counterparties.map((name) => (
@@ -233,7 +231,7 @@ function TransactionRow({ tx, compact, onEdit }: { tx: Transaction; compact: boo
         </td>
       )}
 
-      <td className="w-[160px] px-3 py-3 align-top">
+      <td className="w-[130px] px-2 py-2.5 align-top">
         {tx.feeAmount && tx.feeAsset ? (
           <div className="font-mono text-xs tabular-nums text-muted-foreground">
             {formatAmount(tx.feeAmount, tx.feeAsset)}
@@ -244,7 +242,7 @@ function TransactionRow({ tx, compact, onEdit }: { tx: Transaction; compact: boo
       </td>
 
       {!compact && (
-        <td className="w-[90px] px-3 py-3 align-top">
+        <td className="w-[58px] px-2 py-2.5 align-top">
           <div className="flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
             <button
               type="button"
@@ -253,7 +251,7 @@ function TransactionRow({ tx, compact, onEdit }: { tx: Transaction; compact: boo
                 onEdit(tx);
               }}
               aria-label="Transaktion bearbeiten"
-              className="inline-flex size-8 items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+              className="inline-flex size-7 items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
             >
               <Pencil className="size-3.5" />
             </button>
@@ -270,17 +268,17 @@ export function TransactionTable({ transactions, compact = false }: Props) {
 
   return (
     <>
-      <div className="overflow-hidden rounded-lg border border-border bg-card shadow-[0_1px_2px_rgba(20,30,60,0.04)]">
+      <div className="w-full overflow-hidden rounded-lg border border-border bg-card shadow-[0_1px_2px_rgba(20,30,60,0.04)]">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px] border-separate border-spacing-0 text-sm">
+          <table className="w-full min-w-[780px] border-separate border-spacing-0 text-sm">
             <thead className="sticky top-0 z-10">
               <tr className="border-b border-border/70 bg-muted/70 text-[10px] uppercase tracking-[0.08em] text-muted-foreground backdrop-blur">
-                <th className="px-4 py-2.5 text-left font-medium">Transaktion</th>
-                <th className="px-3 py-2.5 text-left font-medium">Typ</th>
-                <th className="px-3 py-2.5 text-left font-medium">Bewegung</th>
-                {!compact && <th className="px-3 py-2.5 text-left font-medium">Gegenpartei</th>}
-                <th className="px-3 py-2.5 text-left font-medium">Fee</th>
-                {!compact && <th className="px-3 py-2.5 text-right font-medium" aria-label="Aktionen" />}
+                <th className="px-3 py-2 text-left font-medium">Transaktion</th>
+                <th className="px-2 py-2 text-left font-medium">Typ</th>
+                <th className="px-2 py-2 text-left font-medium">Bewegung</th>
+                {!compact && <th className="px-2 py-2 text-left font-medium">Gegenpartei</th>}
+                <th className="px-2 py-2 text-left font-medium">Fee</th>
+                {!compact && <th className="px-2 py-2 text-right font-medium" aria-label="Aktionen" />}
               </tr>
             </thead>
             <tbody>

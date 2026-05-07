@@ -8,7 +8,7 @@ const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: '⊞' },
   { href: '/transactions', label: 'Transaktionen', icon: '⇄' },
   { href: '/portfolio', label: 'Portfolio', icon: '◈' },
-  { href: '/spam-tokens', label: 'Spam Tokens', icon: '⊘' },
+  { href: '/spam-tokens', label: 'Token Review', icon: '⊘' },
 ];
 
 export function Sidebar() {
