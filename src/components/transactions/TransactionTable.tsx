@@ -1,236 +1,298 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { ArrowUpRight, Pencil } from 'lucide-react';
+import {
+  ArrowDownLeft,
+  ArrowLeftRight,
+  ArrowUpRight,
+  Pencil,
+  ShieldAlert,
+} from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { TransactionEditModal } from './TransactionEditModal';
-import type { Transaction, TransactionKind } from '@/types';
+import type { Transaction, TransactionKind, Transfer } from '@/types';
 
 interface Props {
   transactions: Transaction[];
   compact?: boolean;
 }
 
-const kindStyles: Record<TransactionKind, string> = {
-  PAYMENT_IN: 'bg-emerald-50 text-emerald-700 ring-emerald-600/15',
-  PAYMENT_OUT: 'bg-red-50 text-red-700 ring-red-600/15',
-  INTERNAL: 'bg-[#E8ECF6] text-[#63749C] ring-[#63749C]/15',
-  SWAP: 'bg-[#EEF1FB] text-[#4568D0] ring-[#4568D0]/20',
+const kindLabels: Record<TransactionKind, string> = {
+  PAYMENT_IN: 'Eingang',
+  PAYMENT_OUT: 'Ausgang',
+  INTERNAL: 'Intern',
+  SWAP: 'Swap',
 };
 
-const kindLabels: Record<TransactionKind, string> = {
-  PAYMENT_IN: 'PAYMENT_IN',
-  PAYMENT_OUT: 'PAYMENT_OUT',
-  INTERNAL: 'INTERNAL',
-  SWAP: 'SWAP',
+const kindStyles: Record<TransactionKind, string> = {
+  PAYMENT_IN: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  PAYMENT_OUT: 'border-red-200 bg-red-50 text-red-700',
+  INTERNAL: 'border-slate-200 bg-slate-50 text-slate-600',
+  SWAP: 'border-blue-200 bg-blue-50 text-blue-700',
 };
 
 function KindBadge({ kind }: { kind: TransactionKind }) {
   return (
-    <span
-      className={cn(
-        'inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide ring-1 ring-inset',
-        kindStyles[kind],
-      )}
-    >
+    <Badge variant="outline" className={cn('h-6 rounded-md px-2', kindStyles[kind])}>
       {kindLabels[kind]}
-    </span>
+    </Badge>
   );
 }
 
+function KindIcon({ kind }: { kind: TransactionKind }) {
+  const className = 'size-3.5';
+  if (kind === 'PAYMENT_IN') return <ArrowDownLeft className={cn(className, 'text-emerald-600')} />;
+  if (kind === 'PAYMENT_OUT') return <ArrowUpRight className={cn(className, 'text-red-600')} />;
+  return <ArrowLeftRight className={cn(className, 'text-blue-600')} />;
+}
+
 function formatAmount(amount: string, asset: string) {
-  const num = parseFloat(amount);
+  const num = Number(amount);
+  if (!Number.isFinite(num)) return `${amount} ${asset}`;
   return `${num.toLocaleString('de-DE', { maximumFractionDigits: 8 })} ${asset}`;
 }
 
-function shortenTxId(txId: string) {
-  if (txId.length <= 18) return txId;
-  return `${txId.slice(0, 8)}…${txId.slice(-6)}`;
+function formatMoney(value?: string | null) {
+  if (!value) return null;
+  const num = Number(value);
+  if (!Number.isFinite(num) || num === 0) return null;
+  return num.toLocaleString('de-DE', {
+    style: 'currency',
+    currency: 'EUR',
+    maximumFractionDigits: 2,
+  });
+}
+
+function shorten(value: string, start = 8, end = 6) {
+  if (value.length <= start + end + 1) return value;
+  return `${value.slice(0, start)}…${value.slice(-end)}`;
+}
+
+function transferLabel(t: Transfer) {
+  if (t.direction === 'IN') return t.sender ?? t.from;
+  return t.receiver ?? t.to;
+}
+
+function summarizeCounterparties(transfers: Transfer[]) {
+  const names = transfers
+    .map(transferLabel)
+    .filter(Boolean)
+    .map((name) => (name.length > 34 ? shorten(name, 16, 10) : name));
+
+  return Array.from(new Set(names)).slice(0, 2);
+}
+
+function TransferLine({ transfer }: { transfer: Transfer }) {
+  const incoming = transfer.direction === 'IN';
+  const value = formatMoney(transfer.valueEur);
+
+  return (
+    <div
+      className={cn(
+        'flex min-w-0 items-center justify-between gap-3 rounded-md border border-transparent px-2 py-1.5',
+        incoming ? 'bg-emerald-50/60' : 'bg-red-50/50',
+        transfer.isSpam && 'bg-muted/50 opacity-60 line-through',
+      )}
+    >
+      <div className="flex min-w-0 items-center gap-2">
+        <span
+          className={cn(
+            'flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold',
+            incoming ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700',
+          )}
+          aria-label={incoming ? 'Eingang' : 'Ausgang'}
+        >
+          {incoming ? '+' : '−'}
+        </span>
+        <span className="min-w-0 truncate font-mono text-xs tabular-nums text-foreground">
+          {formatAmount(transfer.amount, transfer.asset)}
+        </span>
+        {transfer.isSpam && (
+          <span
+            className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-destructive no-underline"
+            title="Spam-Token"
+            aria-label="Spam-Token"
+          >
+            <ShieldAlert className="size-3" />
+          </span>
+        )}
+      </div>
+      {value && (
+        <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
+          {value}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function TransactionRow({ tx, compact, onEdit }: { tx: Transaction; compact: boolean; onEdit: (tx: Transaction) => void }) {
+  const router = useRouter();
+  const detailHref = `/transactions/${encodeURIComponent(tx.txId)}`;
+  const counterparties = useMemo(() => summarizeCounterparties(tx.transfers), [tx.transfers]);
+  const visibleTransfers = compact ? tx.transfers.slice(0, 2) : tx.transfers.slice(0, 3);
+  const moreTransfers = tx.transfers.length - visibleTransfers.length;
+
+  const openDetails = () => router.push(detailHref);
+
+  return (
+    <tr
+      role="button"
+      tabIndex={0}
+      onClick={openDetails}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          openDetails();
+        }
+      }}
+      className={cn(
+        'group cursor-pointer border-t border-border/60 transition-colors first:border-t-0 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+        tx.isSpam && 'bg-muted/20 opacity-70 hover:opacity-95',
+      )}
+    >
+      <td className="w-[220px] px-4 py-3 align-top">
+        <div className="flex min-w-0 gap-3">
+          <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-background">
+            <KindIcon kind={tx.kind} />
+          </div>
+          <div className="min-w-0">
+            <Link
+              href={detailHref}
+              onClick={(event) => event.stopPropagation()}
+              className="block font-medium text-foreground transition-colors hover:text-primary"
+            >
+              {format(new Date(tx.date), 'dd.MM.yyyy', { locale: de })}
+            </Link>
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[11px] tabular-nums text-muted-foreground">
+              <span>{format(new Date(tx.date), 'HH:mm')}</span>
+              <span className="text-muted-foreground/40">·</span>
+              <span title={tx.txId}>{shorten(tx.txId)}</span>
+            </div>
+            {!compact && tx.note && (
+              <div className="mt-1 max-w-[190px] truncate text-xs text-muted-foreground" title={tx.note}>
+                {tx.note}
+              </div>
+            )}
+          </div>
+        </div>
+      </td>
+
+      <td className="w-[150px] px-3 py-3 align-top">
+        <div className="flex flex-col items-start gap-1.5">
+          <KindBadge kind={tx.kind} />
+          <div className="flex items-center gap-1.5">
+            <Badge variant="secondary" className="h-5 rounded-md font-mono text-[10px] uppercase tracking-wide">
+              {tx.network}
+            </Badge>
+            {tx.isSpam && (
+              <Badge variant="destructive" className="h-5 rounded-md text-[10px]">
+                <ShieldAlert className="size-3" />
+                Spam
+              </Badge>
+            )}
+          </div>
+        </div>
+      </td>
+
+      <td className="min-w-[300px] px-3 py-3 align-top">
+        <div className="flex flex-col gap-1">
+          {visibleTransfers.map((transfer) => (
+            <TransferLine key={transfer.id} transfer={transfer} />
+          ))}
+          {moreTransfers > 0 && (
+            <Link
+              href={detailHref}
+              onClick={(event) => event.stopPropagation()}
+              className="px-2 pt-0.5 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+            >
+              +{moreTransfers} weitere Transfers anzeigen
+            </Link>
+          )}
+        </div>
+      </td>
+
+      {!compact && (
+        <td className="w-[220px] px-3 py-3 align-top">
+          {counterparties.length > 0 ? (
+            <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+              {counterparties.map((name) => (
+                <span key={name} className="truncate" title={name}>
+                  {name}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <span className="text-muted-foreground/40">—</span>
+          )}
+        </td>
+      )}
+
+      <td className="w-[160px] px-3 py-3 align-top">
+        {tx.feeAmount && tx.feeAsset ? (
+          <div className="font-mono text-xs tabular-nums text-muted-foreground">
+            {formatAmount(tx.feeAmount, tx.feeAsset)}
+          </div>
+        ) : (
+          <span className="text-muted-foreground/40">—</span>
+        )}
+      </td>
+
+      {!compact && (
+        <td className="w-[90px] px-3 py-3 align-top">
+          <div className="flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onEdit(tx);
+              }}
+              aria-label="Transaktion bearbeiten"
+              className="inline-flex size-8 items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+            >
+              <Pencil className="size-3.5" />
+            </button>
+          </div>
+        </td>
+      )}
+    </tr>
+  );
 }
 
 export function TransactionTable({ transactions, compact = false }: Props) {
   const [editTx, setEditTx] = useState<Transaction | null>(null);
-
-  const cols = compact ? 5 : 7;
+  const cols = compact ? 4 : 6;
 
   return (
     <>
       <div className="overflow-hidden rounded-lg border border-border bg-card shadow-[0_1px_2px_rgba(20,30,60,0.04)]">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border/70 bg-muted/40 text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
-                <th className="px-4 py-2.5 text-left font-medium">Datum</th>
-                <th className="px-3 py-2.5 text-left font-medium">Network</th>
-                <th className="px-3 py-2.5 text-left font-medium">Kind</th>
-                <th className="px-3 py-2.5 text-left font-medium">Transfers</th>
+          <table className="w-full min-w-[900px] border-separate border-spacing-0 text-sm">
+            <thead className="sticky top-0 z-10">
+              <tr className="border-b border-border/70 bg-muted/70 text-[10px] uppercase tracking-[0.08em] text-muted-foreground backdrop-blur">
+                <th className="px-4 py-2.5 text-left font-medium">Transaktion</th>
+                <th className="px-3 py-2.5 text-left font-medium">Typ</th>
+                <th className="px-3 py-2.5 text-left font-medium">Bewegung</th>
+                {!compact && <th className="px-3 py-2.5 text-left font-medium">Gegenpartei</th>}
                 <th className="px-3 py-2.5 text-left font-medium">Fee</th>
-                {!compact && (
-                  <>
-                    <th className="px-3 py-2.5 text-left font-medium">Notiz</th>
-                    <th
-                      className="px-3 py-2.5 text-right font-medium"
-                      aria-label="Aktionen"
-                    />
-                  </>
-                )}
+                {!compact && <th className="px-3 py-2.5 text-right font-medium" aria-label="Aktionen" />}
               </tr>
             </thead>
             <tbody>
               {transactions.length === 0 ? (
                 <tr>
-                  <td
-                    colSpan={cols}
-                    className="px-4 py-12 text-center text-sm text-muted-foreground"
-                  >
+                  <td colSpan={cols} className="px-4 py-12 text-center text-sm text-muted-foreground">
                     Keine Transaktionen
                   </td>
                 </tr>
               ) : (
                 transactions.map((tx) => (
-                  <tr
-                    key={tx.txId}
-                    className={cn(
-                      'group border-t border-border/50 transition-colors first:border-t-0',
-                      tx.isSpam
-                        ? 'opacity-55 hover:bg-muted/40 hover:opacity-90'
-                        : 'hover:bg-muted/40',
-                    )}
-                  >
-                    {/* Datum */}
-                    <td className="px-4 py-3 align-top whitespace-nowrap">
-                      <Link
-                        href={`/transactions/${encodeURIComponent(tx.txId)}`}
-                        className="block text-foreground/90 hover:text-primary transition-colors"
-                      >
-                        <span className="block font-mono text-xs tabular-nums">
-                          {format(new Date(tx.date), compact ? 'dd.MM.yy' : 'dd.MM.yyyy', { locale: de })}
-                        </span>
-                        {!compact && (
-                          <>
-                            <span className="block font-mono text-[10px] tabular-nums text-muted-foreground">
-                              {format(new Date(tx.date), 'HH:mm:ss')}
-                            </span>
-                            <span className="mt-0.5 block font-mono text-[10px] text-muted-foreground/60 group-hover:text-muted-foreground">
-                              {shortenTxId(tx.txId)}
-                            </span>
-                          </>
-                        )}
-                      </Link>
-                    </td>
-
-                    {/* Network */}
-                    <td className="px-3 py-3 align-top whitespace-nowrap">
-                      <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-                        {tx.network}
-                      </span>
-                    </td>
-
-                    {/* Kind */}
-                    <td className="px-3 py-3 align-top whitespace-nowrap">
-                      <div className="flex flex-col items-start gap-1">
-                        <KindBadge kind={tx.kind} />
-                        {tx.isSpam && (
-                          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-red-700 ring-1 ring-inset ring-red-600/30">
-                            Spam
-                          </span>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Transfers */}
-                    <td className="px-3 py-3 align-top">
-                      <div className="space-y-0.5">
-                        {tx.transfers
-                          .slice(0, compact ? 2 : undefined)
-                          .map((t) => (
-                            <div
-                              key={t.id}
-                              className={cn(
-                                'flex items-baseline gap-2 font-mono text-xs leading-tight tabular-nums',
-                                t.isSpam && 'line-through text-muted-foreground/60',
-                              )}
-                            >
-                              <span
-                                className={cn(
-                                  'inline-block w-3 shrink-0 text-center font-bold',
-                                  t.direction === 'IN'
-                                    ? 'text-emerald-600'
-                                    : 'text-red-500',
-                                )}
-                                aria-label={t.direction === 'IN' ? 'Eingang' : 'Ausgang'}
-                              >
-                                {t.direction === 'IN' ? '+' : '−'}
-                              </span>
-                              <span className="truncate">
-                                {formatAmount(t.amount, t.asset)}
-                              </span>
-                            </div>
-                          ))}
-                        {compact && tx.transfers.length > 2 && (
-                          <span className="text-[11px] text-muted-foreground">
-                            +{tx.transfers.length - 2} weitere
-                          </span>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Fee */}
-                    <td className="px-3 py-3 align-top whitespace-nowrap">
-                      {tx.feeAmount && tx.feeAsset ? (
-                        <span className="font-mono text-xs tabular-nums text-muted-foreground">
-                          {parseFloat(tx.feeAmount).toLocaleString('de-DE', {
-                            maximumFractionDigits: 8,
-                          })}{' '}
-                          {tx.feeAsset}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground/40">—</span>
-                      )}
-                    </td>
-
-                    {!compact && (
-                      <>
-                        {/* Notiz */}
-                        <td className="px-3 py-3 align-top">
-                          {tx.note ? (
-                            <span
-                              className="block max-w-[180px] truncate text-xs text-foreground/80"
-                              title={tx.note}
-                            >
-                              {tx.note}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground/40">—</span>
-                          )}
-                        </td>
-
-                        {/* Aktionen */}
-                        <td className="px-3 py-3 align-top">
-                          <div className="flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-                            <Link
-                              href={`/transactions/${encodeURIComponent(tx.txId)}`}
-                              aria-label="Details öffnen"
-                              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
-                            >
-                              <ArrowUpRight className="size-3.5" />
-                            </Link>
-                            <button
-                              type="button"
-                              onClick={() => setEditTx(tx)}
-                              aria-label="Transaktion bearbeiten"
-                              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
-                            >
-                              <Pencil className="size-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </>
-                    )}
-                  </tr>
+                  <TransactionRow key={tx.txId} tx={tx} compact={compact} onEdit={setEditTx} />
                 ))
               )}
             </tbody>

@@ -2,12 +2,19 @@
 
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Check, ShieldOff, Wallet, X } from 'lucide-react';
+import { format } from 'date-fns';
+import { de } from 'date-fns/locale';
+import type { DateRange } from 'react-day-picker';
+import { CalendarIcon, Check, ListFilter, ShieldOff, Wallet, X } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -25,16 +32,30 @@ import type { TransactionKind, TransactionListParams } from '@/types';
 
 const KINDS: TransactionKind[] = ['PAYMENT_IN', 'PAYMENT_OUT', 'INTERNAL', 'SWAP'];
 
-const KIND_ACCENT: Record<TransactionKind, string> = {
-  PAYMENT_IN: 'data-[active=true]:text-emerald-700',
-  PAYMENT_OUT: 'data-[active=true]:text-red-600',
-  INTERNAL: 'data-[active=true]:text-[#63749C]',
-  SWAP: 'data-[active=true]:text-[#4568D0]',
+const KIND_LABELS: Record<TransactionKind, string> = {
+  PAYMENT_IN: 'Eingang',
+  PAYMENT_OUT: 'Ausgang',
+  INTERNAL: 'Intern',
+  SWAP: 'Swap',
 };
+
+function formatDateParam(date?: Date) {
+  return date ? format(date, 'yyyy-MM-dd') : undefined;
+}
+
+function formatDateRangeLabel(range?: DateRange) {
+  if (!range?.from) return 'Zeitraum';
+  if (!range.to || format(range.from, 'yyyy-MM-dd') === format(range.to, 'yyyy-MM-dd')) {
+    return format(range.from, 'dd.MM.yyyy', { locale: de });
+  }
+  return `${format(range.from, 'dd.MM.yyyy', { locale: de })} – ${format(range.to, 'dd.MM.yyyy', { locale: de })}`;
+}
 
 export default function TransactionsPage() {
   const [kindFilter, setKindFilter] = useState<TransactionKind | 'ALL'>('ALL');
   const [walletFilter, setWalletFilter] = useState<string>('ALL');
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [hideSpam, setHideSpam] = useState(true);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
@@ -45,6 +66,14 @@ export default function TransactionsPage() {
   };
   const changeWallet = (w: string) => {
     setWalletFilter(w);
+    setPage(1);
+  };
+  const changeDateRange = (range: DateRange | undefined) => {
+    setDateRange(range);
+    setPage(1);
+  };
+  const clearDateRange = () => {
+    setDateRange(undefined);
     setPage(1);
   };
   const changeHideSpam = (v: boolean) => {
@@ -58,6 +87,7 @@ export default function TransactionsPage() {
   const resetFilters = () => {
     setKindFilter('ALL');
     setWalletFilter('ALL');
+    setDateRange(undefined);
     setHideSpam(true);
     setPage(1);
   };
@@ -68,17 +98,21 @@ export default function TransactionsPage() {
       pageSize,
       kind: kindFilter === 'ALL' ? undefined : kindFilter,
       wallet: walletFilter === 'ALL' ? undefined : walletFilter,
+      dateFrom: formatDateParam(dateRange?.from),
+      dateTo: formatDateParam(dateRange?.to ?? dateRange?.from),
       excludeSpam: hideSpam || undefined,
     }),
-    [page, pageSize, kindFilter, walletFilter, hideSpam],
+    [page, pageSize, kindFilter, walletFilter, dateRange, hideSpam],
   );
 
   const statsParams = useMemo(
     () => ({
       wallet: walletFilter === 'ALL' ? undefined : walletFilter,
+      dateFrom: formatDateParam(dateRange?.from),
+      dateTo: formatDateParam(dateRange?.to ?? dateRange?.from),
       excludeSpam: hideSpam || undefined,
     }),
-    [walletFilter, hideSpam],
+    [walletFilter, dateRange, hideSpam],
   );
 
   const list = useQuery({
@@ -100,7 +134,7 @@ export default function TransactionsPage() {
   const total = list.data?.total ?? 0;
   const totalPages = list.data?.totalPages ?? 1;
   const transactions = list.data?.data ?? [];
-  const isFiltered = kindFilter !== 'ALL' || walletFilter !== 'ALL' || !hideSpam;
+  const isFiltered = kindFilter !== 'ALL' || walletFilter !== 'ALL' || !!dateRange?.from || !hideSpam;
 
   const kindCount = (k: TransactionKind | 'ALL') =>
     k === 'ALL' ? stats.data?.total ?? 0 : stats.data?.byKind[k] ?? 0;
@@ -136,94 +170,137 @@ export default function TransactionsPage() {
       )}
 
       {/* Filter-Toolbar */}
-      <div className="flex flex-wrap items-stretch gap-3">
-        {/* Kind segmented control */}
-        <div className="inline-flex overflow-hidden rounded-md border border-border bg-card shadow-[0_1px_2px_rgba(20,30,60,0.04)]">
-          {(['ALL', ...KINDS] as const).map((k, i) => {
-            const active = kindFilter === k;
-            const accent = k === 'ALL' ? '' : KIND_ACCENT[k];
-            return (
-              <button
-                key={k}
-                type="button"
-                data-active={active}
-                onClick={() => changeKind(k)}
-                className={cn(
-                  'group/seg relative flex min-w-[72px] flex-col items-center justify-center gap-0.5 px-3.5 py-2 text-left transition-colors',
-                  i > 0 && 'border-l border-border',
-                  active
-                    ? 'bg-muted/70'
-                    : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground',
-                  accent,
-                )}
-              >
-                <span
-                  className={cn(
-                    'text-[10px] font-semibold uppercase tracking-[0.08em]',
-                    active ? 'text-current' : 'text-muted-foreground',
-                  )}
-                >
-                  {k === 'ALL' ? 'Alle' : k}
+      <div className="flex flex-wrap items-center gap-2 lg:flex-nowrap">
+        {/* Type Filter */}
+        <Select value={kindFilter} onValueChange={(v) => changeKind(v as TransactionKind | 'ALL')}>
+          <SelectTrigger className="h-9 w-full min-w-[170px] bg-card text-xs shadow-[0_1px_2px_rgba(20,30,60,0.04)] sm:w-[180px]">
+            <ListFilter className="size-3.5 text-muted-foreground" />
+            <SelectValue placeholder="Typ" />
+          </SelectTrigger>
+          <SelectContent align="start">
+            <SelectGroup>
+              <SelectItem value="ALL">
+                Alle Typen
+                <span className="ml-auto inline-flex min-w-12 items-center justify-end self-center font-mono text-xs leading-none tabular-nums text-muted-foreground">
+                  {stats.data ? kindCount('ALL').toLocaleString('de-DE') : '—'}
                 </span>
-                <span
-                  className={cn(
-                    'font-mono text-sm tabular-nums leading-none',
-                    active ? 'text-current font-semibold' : 'text-foreground/75',
-                  )}
-                >
-                  {stats.data ? kindCount(k).toLocaleString('de-DE') : '—'}
-                </span>
-                {active && (
-                  <span
-                    aria-hidden
-                    className="absolute inset-x-0 bottom-0 h-[2px] bg-current opacity-90"
-                  />
-                )}
-              </button>
-            );
-          })}
-        </div>
+              </SelectItem>
+              {KINDS.map((kind) => (
+                <SelectItem key={kind} value={kind}>
+                  {KIND_LABELS[kind]}
+                  <span className="ml-auto inline-flex min-w-12 items-center justify-end self-center font-mono text-xs leading-none tabular-nums text-muted-foreground">
+                    {stats.data ? kindCount(kind).toLocaleString('de-DE') : '—'}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
 
         {/* Wallet Filter */}
-        <div className="flex items-center gap-1 rounded-md border border-border bg-card pl-2.5 pr-1 shadow-[0_1px_2px_rgba(20,30,60,0.04)]">
-          <Wallet className="size-3.5 text-muted-foreground" />
-          <Select
-            value={walletFilter}
-            onValueChange={(v) => changeWallet(v ?? 'ALL')}
-          >
-            <SelectTrigger className="h-9 w-[180px] border-0 bg-transparent px-1 text-xs shadow-none focus:ring-0 focus-visible:ring-0">
-              <SelectValue placeholder="Alle Wallets" />
-            </SelectTrigger>
-            <SelectContent>
+        <Select
+          value={walletFilter}
+          onValueChange={(v) => changeWallet(v ?? 'ALL')}
+        >
+          <SelectTrigger className="h-9 w-full min-w-[190px] bg-card text-xs shadow-[0_1px_2px_rgba(20,30,60,0.04)] sm:w-[220px]">
+            <Wallet className="size-3.5 text-muted-foreground" />
+            <SelectValue placeholder="Alle Wallets" />
+          </SelectTrigger>
+          <SelectContent align="start">
+            <SelectGroup>
               <SelectItem value="ALL">Alle Wallets</SelectItem>
               {(wallets.data ?? []).map((name) => (
                 <SelectItem key={name} value={name}>
                   {name}
                 </SelectItem>
               ))}
-            </SelectContent>
-          </Select>
-          {walletFilter !== 'ALL' && (
-            <button
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+
+        {/* Date Range Filter */}
+        <div className="flex h-8 w-full min-w-[230px] items-center gap-1 rounded-lg border border-input bg-card pl-2.5 pr-1 text-xs shadow-[0_1px_2px_rgba(20,30,60,0.04)] sm:w-[260px]">
+          <CalendarIcon className="size-3.5 text-muted-foreground" />
+          <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+            <PopoverTrigger
+              className={cn(
+                'inline-flex min-w-0 flex-1 items-center justify-start text-left transition-colors outline-none',
+                dateRange?.from ? 'text-foreground' : 'text-muted-foreground',
+              )}
+            >
+              <span className="truncate">{formatDateRangeLabel(dateRange)}</span>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-2" align="start">
+              <Calendar
+                mode="range"
+                selected={dateRange}
+                onSelect={changeDateRange}
+                numberOfMonths={2}
+                locale={de}
+                showOutsideDays={false}
+                disabled={{ after: new Date() }}
+                classNames={{
+                  day_button:
+                    'group-data-[focused=true]/day:border-transparent group-data-[focused=true]/day:ring-0 focus-visible:ring-0',
+                }}
+              />
+              <div className="flex items-center justify-between border-t border-border px-1 pt-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => changeDateRange({ from: new Date(), to: new Date() })}
+                >
+                  Heute
+                </Button>
+                <div className="flex items-center gap-1">
+                  {dateRange?.from && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearDateRange}
+                    >
+                      Löschen
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDatePickerOpen(false)}
+                  >
+                    Fertig
+                  </Button>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+          {dateRange?.from && (
+            <Button
               type="button"
-              onClick={() => changeWallet('ALL')}
-              className="inline-flex size-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground"
-              aria-label="Wallet-Filter entfernen"
+              variant="ghost"
+              size="icon-sm"
+              onClick={clearDateRange}
+              aria-label="Zeitraum-Filter entfernen"
+              className="text-muted-foreground hover:bg-muted/70 hover:text-foreground"
             >
               <X className="size-3.5" />
-            </button>
+            </Button>
           )}
         </div>
 
         {/* Spam Toggle */}
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="lg"
           onClick={() => changeHideSpam(!hideSpam)}
           aria-pressed={hideSpam}
           className={cn(
-            'inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors shadow-[0_1px_2px_rgba(20,30,60,0.04)]',
+            'h-8 gap-2 rounded-lg px-2.5 text-xs shadow-[0_1px_2px_rgba(20,30,60,0.04)]',
             hideSpam
-              ? 'border-primary/40 bg-primary/8 text-primary'
+              ? 'border-primary/40 bg-primary/8 text-primary hover:bg-primary/10 hover:text-primary'
               : 'border-border bg-card text-muted-foreground hover:bg-muted/40 hover:text-foreground',
           )}
         >
@@ -240,18 +317,20 @@ export default function TransactionsPage() {
           </span>
           <ShieldOff className="size-3.5" aria-hidden />
           Spam ausblenden
-        </button>
+        </Button>
 
         {/* Reset */}
         {isFiltered && (
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="sm"
             onClick={resetFilters}
-            className="ml-auto inline-flex items-center gap-1.5 self-center text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+            className="ml-auto self-center text-xs text-muted-foreground hover:text-foreground"
           >
             <X className="size-3" />
             Filter zurücksetzen
-          </button>
+          </Button>
         )}
       </div>
 
