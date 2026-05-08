@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useAuth } from '@/components/AuthProvider';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -13,6 +14,14 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const isPublicPath = pathname === '/login' || pathname === '/bootstrap';
+  const auth = useAuth();
+
+  if (isPublicPath) return null;
+
+  const nav = auth?.user?.role === 'ADMIN'
+    ? [...navItems, { href: '/users', label: 'Benutzer', icon: '◎' }]
+    : navItems;
 
   return (
     <aside className="w-56 shrink-0 flex flex-col bg-[#0E1116] border-r border-white/[0.06]">
@@ -31,7 +40,7 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex flex-col gap-0.5 p-3 flex-1">
-        {navItems.map((item) => {
+        {nav.map((item) => {
           const isActive = pathname === item.href;
           return (
             <Link
@@ -52,10 +61,20 @@ export function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="px-5 py-4 border-t border-white/[0.06]">
-        <span className="text-[10px] text-[#414C66] tracking-wide">
-          Internal · No auth
-        </span>
+      <div className="border-t border-white/[0.06] px-5 py-4">
+        <div className="truncate text-[11px] font-medium text-[#A8B4CC]">
+          {auth?.user?.name}
+        </div>
+        <div className="mt-0.5 text-[10px] uppercase tracking-wide text-[#414C66]">
+          {auth?.user?.role}
+        </div>
+        <button
+          type="button"
+          onClick={() => void auth?.logout()}
+          className="mt-2 text-[10px] text-[#63749C] underline-offset-4 hover:text-[#A8B4CC] hover:underline"
+        >
+          Logout
+        </button>
       </div>
     </aside>
   );

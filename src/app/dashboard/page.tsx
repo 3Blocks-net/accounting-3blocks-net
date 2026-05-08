@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAuth } from '@/components/AuthProvider';
 import { TransactionTable } from '@/components/transactions/TransactionTable';
 import { getTransactions, getTransactionStats, triggerSync } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -65,6 +66,7 @@ const KIND_META: Record<
 
 export default function DashboardPage() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const stats = useQuery({
     queryKey: queryKeys.transactions.stats(),
@@ -101,15 +103,17 @@ export default function DashboardPage() {
             Überblick über Transaktionen, Klassifizierung und die letzten Bewegungen.
           </p>
         </div>
-        <Button
-          onClick={() => syncMutation.mutate()}
-          disabled={syncMutation.isPending}
-          size="sm"
-          className="gap-2"
-        >
-          <RefreshCw className={cn('size-3.5', syncMutation.isPending && 'animate-spin')} />
-          {syncMutation.isPending ? 'Synchronisieren…' : 'Sync auslösen'}
-        </Button>
+        {user?.role === 'ADMIN' && (
+          <Button
+            onClick={() => syncMutation.mutate()}
+            disabled={syncMutation.isPending}
+            size="sm"
+            className="gap-2"
+          >
+            <RefreshCw className={cn('size-3.5', syncMutation.isPending && 'animate-spin')} />
+            {syncMutation.isPending ? 'Synchronisieren…' : 'Sync auslösen'}
+          </Button>
+        )}
       </header>
 
       {isError && (

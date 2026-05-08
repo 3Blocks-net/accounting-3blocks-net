@@ -9,12 +9,21 @@ import type {
   TransactionStats,
   TransactionStatsParams,
   TransactionUpdateBody,
+  User,
+  UserRole,
 } from '@/types';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3000';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, init);
+  const res = await fetch(`${BASE_URL}${path}`, {
+    ...init,
+    credentials: 'include',
+    headers: {
+      ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+      ...init?.headers,
+    },
+  });
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
     throw new Error(`${res.status} ${text}`);
@@ -116,4 +125,42 @@ export function flagTransferTokenAsSpam(input: TokenIdentifier): Promise<SpamTok
 
 export function triggerSync(): Promise<{ synced: number }> {
   return request<{ synced: number }>('/sync/trigger', { method: 'POST' });
+}
+
+export function login(email: string, password: string): Promise<User> {
+  return request<User>('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export function bootstrapAdmin(input: { email: string; name: string; password: string }): Promise<User> {
+  return request<User>('/auth/bootstrap', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function logout(): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>('/auth/logout', { method: 'POST' });
+}
+
+export function getMe(): Promise<User> {
+  return request<User>('/auth/me');
+}
+
+export function getUsers(): Promise<User[]> {
+  return request<User[]>('/users');
+}
+
+export function createUser(input: { email: string; name: string; password: string; role: UserRole }): Promise<User> {
+  return request<User>('/users', { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function updateUser(id: string, input: { email?: string; name?: string; role?: UserRole; isActive?: boolean }): Promise<User> {
+  return request<User>(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+
+export function resetUserPassword(id: string, password: string): Promise<User> {
+  return request<User>(`/users/${id}/reset-password`, { method: 'POST', body: JSON.stringify({ password }) });
 }

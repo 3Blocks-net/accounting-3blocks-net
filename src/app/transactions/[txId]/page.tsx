@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { Loader2, ShieldCheck, ShieldOff } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth } from '@/components/AuthProvider';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -144,7 +145,7 @@ function SpamToggleButton({
   );
 }
 
-function TransferRow({ t, network }: { t: Transfer; network: string }) {
+function TransferRow({ t, network, canEdit }: { t: Transfer; network: string; canEdit: boolean }) {
   const isIn = t.direction === 'IN';
   return (
     <tr
@@ -205,15 +206,19 @@ function TransferRow({ t, network }: { t: Transfer; network: string }) {
         {t.operation ?? '—'}
         {t.note && <span className="block text-[11px] italic">{t.note}</span>}
       </td>
-      <td className="px-3 py-3 text-right whitespace-nowrap">
-        <SpamToggleButton transfer={t} network={network} />
-      </td>
+      {canEdit && (
+        <td className="px-3 py-3 text-right whitespace-nowrap">
+          <SpamToggleButton transfer={t} network={network} />
+        </td>
+      )}
     </tr>
   );
 }
 
 function TransactionDetail({ tx }: { tx: Transaction }) {
   const [editOpen, setEditOpen] = useState(false);
+  const { user } = useAuth();
+  const canEdit = user?.role === 'ADMIN' || user?.role === 'ACCOUNTANT';
   const explorerUrl = getExplorerUrl(tx.network, tx.txId);
   const explorerName = getExplorerName(tx.network);
   const router = useRouter();
@@ -247,9 +252,11 @@ function TransactionDetail({ tx }: { tx: Transaction }) {
               <span className="text-muted-foreground">↗</span>
             </a>
           )}
-          <Button size="sm" variant="outline" onClick={() => setEditOpen(true)}>
-            Bearbeiten
-          </Button>
+          {canEdit && (
+            <Button size="sm" variant="outline" onClick={() => setEditOpen(true)}>
+              Bearbeiten
+            </Button>
+          )}
         </div>
       </div>
 
@@ -335,26 +342,30 @@ function TransactionDetail({ tx }: { tx: Transaction }) {
                 <th className="px-3 py-2 text-right text-[11px] font-medium text-muted-foreground uppercase tracking-wide">USD</th>
                 <th className="px-3 py-2 text-right text-[11px] font-medium text-muted-foreground uppercase tracking-wide">EUR</th>
                 <th className="px-3 py-2 text-left text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Operation</th>
-                <th
-                  className="px-3 py-2 text-right text-[11px] font-medium text-muted-foreground uppercase tracking-wide"
-                  aria-label="Aktion"
-                />
+                {canEdit && (
+                  <th
+                    className="px-3 py-2 text-right text-[11px] font-medium text-muted-foreground uppercase tracking-wide"
+                    aria-label="Aktion"
+                  />
+                )}
               </tr>
             </thead>
             <tbody>
               {tx.transfers.map((t) => (
-                <TransferRow key={t.id} t={t} network={tx.network} />
+                <TransferRow key={t.id} t={t} network={tx.network} canEdit={canEdit} />
               ))}
             </tbody>
           </table>
         </div>
       </div>
 
-      <TransactionEditModal
-        transaction={tx}
-        open={editOpen}
-        onOpenChange={setEditOpen}
-      />
+      {canEdit && (
+        <TransactionEditModal
+          transaction={tx}
+          open={editOpen}
+          onOpenChange={setEditOpen}
+        />
+      )}
     </div>
   );
 }

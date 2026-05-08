@@ -12,6 +12,7 @@ import {
   Pencil,
   ShieldAlert,
 } from 'lucide-react';
+import { useAuth } from '@/components/AuthProvider';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { TransactionEditModal } from './TransactionEditModal';
@@ -131,7 +132,7 @@ function TransferLine({ transfer }: { transfer: Transfer }) {
   );
 }
 
-function TransactionRow({ tx, compact, onEdit }: { tx: Transaction; compact: boolean; onEdit: (tx: Transaction) => void }) {
+function TransactionRow({ tx, compact, canEdit, onEdit }: { tx: Transaction; compact: boolean; canEdit: boolean; onEdit: (tx: Transaction) => void }) {
   const router = useRouter();
   const detailHref = `/transactions/${encodeURIComponent(tx.txId)}`;
   const counterparties = useMemo(() => summarizeCounterparties(tx.transfers), [tx.transfers]);
@@ -241,7 +242,7 @@ function TransactionRow({ tx, compact, onEdit }: { tx: Transaction; compact: boo
         )}
       </td>
 
-      {!compact && (
+      {!compact && canEdit && (
         <td className="w-[58px] px-2 py-2.5 align-top">
           <div className="flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
             <button
@@ -264,7 +265,9 @@ function TransactionRow({ tx, compact, onEdit }: { tx: Transaction; compact: boo
 
 export function TransactionTable({ transactions, compact = false }: Props) {
   const [editTx, setEditTx] = useState<Transaction | null>(null);
-  const cols = compact ? 4 : 6;
+  const { user } = useAuth();
+  const canEdit = user?.role === 'ADMIN' || user?.role === 'ACCOUNTANT';
+  const cols = compact ? 4 : canEdit ? 6 : 5;
 
   return (
     <>
@@ -278,7 +281,7 @@ export function TransactionTable({ transactions, compact = false }: Props) {
                 <th className="px-2 py-2 text-left font-medium">Bewegung</th>
                 {!compact && <th className="px-2 py-2 text-left font-medium">Gegenpartei</th>}
                 <th className="px-2 py-2 text-left font-medium">Fee</th>
-                {!compact && <th className="px-2 py-2 text-right font-medium" aria-label="Aktionen" />}
+                {!compact && canEdit && <th className="px-2 py-2 text-right font-medium" aria-label="Aktionen" />}
               </tr>
             </thead>
             <tbody>
@@ -290,7 +293,7 @@ export function TransactionTable({ transactions, compact = false }: Props) {
                 </tr>
               ) : (
                 transactions.map((tx) => (
-                  <TransactionRow key={tx.txId} tx={tx} compact={compact} onEdit={setEditTx} />
+                  <TransactionRow key={tx.txId} tx={tx} compact={compact} canEdit={canEdit} onEdit={setEditTx} />
                 ))
               )}
             </tbody>

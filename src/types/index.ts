@@ -60,6 +60,20 @@ export interface TransactionUpdateBody {
   valueEur?: string;
 }
 
+export type UserRole = 'ADMIN' | 'ACCOUNTANT' | 'VIEWER';
+
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  isActive: boolean;
+  mustChangePassword: boolean;
+  lastLoginAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type SpamStatus = 'SPAM' | 'WHITELISTED';
 
 export interface SpamToken {

@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { CheckCircle2, ShieldAlert } from 'lucide-react';
+import { useAuth } from '@/components/AuthProvider';
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -114,6 +115,9 @@ function BlocklistAction({ token }: { token: SpamToken }) {
 }
 
 export function SpamTokenTable({ tokens }: Props) {
+  const { user } = useAuth();
+  const canEdit = user?.role === 'ADMIN' || user?.role === 'ACCOUNTANT';
+
   return (
     <div className="w-full overflow-hidden rounded-lg border border-border bg-card shadow-[0_1px_2px_rgba(20,30,60,0.04)]">
       <div className="overflow-x-auto">
@@ -126,7 +130,7 @@ export function SpamTokenTable({ tokens }: Props) {
               <th className="px-2 py-2 text-left font-medium">Status</th>
               <th className="px-2 py-2 text-left font-medium">Erstmals gesehen</th>
               <th className="px-2 py-2 text-left font-medium">Notiz</th>
-              <th className="px-3 py-2 text-right font-medium" aria-label="Aktionen" />
+              {canEdit && <th className="px-3 py-2 text-right font-medium" aria-label="Aktionen" />}
             </tr>
           </thead>
           <tbody>
@@ -155,15 +159,17 @@ export function SpamTokenTable({ tokens }: Props) {
                 <td className="max-w-[220px] truncate px-2 py-2.5 align-top text-xs text-muted-foreground" title={token.note ?? undefined}>
                   {token.note ?? '—'}
                 </td>
-                <td className="px-3 py-2.5 align-top">
-                  <div className="flex justify-end">
-                    {token.status === 'SPAM' ? (
-                      <AllowlistAction token={token} />
-                    ) : (
-                      <BlocklistAction token={token} />
-                    )}
-                  </div>
-                </td>
+                {canEdit && (
+                  <td className="px-3 py-2.5 align-top">
+                    <div className="flex justify-end">
+                      {token.status === 'SPAM' ? (
+                        <AllowlistAction token={token} />
+                      ) : (
+                        <BlocklistAction token={token} />
+                      )}
+                    </div>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
